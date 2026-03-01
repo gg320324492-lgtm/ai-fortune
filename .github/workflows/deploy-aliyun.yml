@@ -38,7 +38,7 @@ jobs:
         run: |
           set -euo pipefail
           TARGET_HOST="60.205.93.8"
-          TARGET_USER="deploy"
+          TARGET_USER="admin"
           TARGET_PORT="22"
           REMOTE_DIR="/var/www/fate"
 
