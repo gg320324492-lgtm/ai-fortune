@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  deploy:
+  fate:
     runs-on: ubuntu-latest
 
     steps:
@@ -27,30 +27,30 @@ jobs:
           npm run build
           test -d out
           touch out/.nojekyll
-          echo "sha=$GITHUB_SHA" > out/deploy.txt
-          echo "time=$(date -u)" >> out/deploy.txt
-          echo "target=aliyun" >> out/deploy.txt
+          echo "sha=$GITHUB_SHA" > out/fate.txt
+          echo "time=$(date -u)" >> out/fate.txt
+          echo "target=aliyun" >> out/fate.txt
 
-      - name: Deploy to Aliyun via rsync + reload nginx
+      - name: fate to Aliyun via rsync + reload nginx
         shell: bash
         env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
         run: |
           set -euo pipefail
           TARGET_HOST="60.205.93.8"
-          TARGET_USER="admin"
+          TARGET_USER="fate"
           TARGET_PORT="22"
-          REMOTE_DIR="/var/www/fate"
+          REMOTE_DIR="/var/www/html"
 
           mkdir -p ~/.ssh
-          printf '%s' "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_ed25519
+          printf '%s' "$SSH_PASSWORD" | tr -d '\r' > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -p "$TARGET_PORT" "$TARGET_HOST" >> ~/.ssh/known_hosts
 
-          ssh -p "$TARGET_PORT" "$TARGET_USER@$TARGET_HOST" "mkdir -p '$REMOTE_DIR'"
+          sshpass -p "$SSH_PASSWORD" ssh -p "$TARGET_PORT" "$TARGET_USER@$TARGET_HOST" "mkdir -p '$REMOTE_DIR'"
 
           rsync -az --delete \
-            -e "ssh -p $TARGET_PORT -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes" \
+            -e "sshpass -p "$SSH_PASSWORD" ssh -p $TARGET_PORT -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes" \
             out/ "$TARGET_USER@$TARGET_HOST:$REMOTE_DIR/"
 
-          ssh -p "$TARGET_PORT" "$TARGET_USER@$TARGET_HOST" "sudo nginx -t && sudo systemctl reload nginx"
+          sshpass -p "$SSH_PASSWORD" ssh -p "$TARGET_PORT" "$TARGET_USER@$TARGET_HOST" "sudo nginx -t && sudo systemctl reload nginx"
