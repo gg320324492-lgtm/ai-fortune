@@ -1,8 +1,8 @@
-name: Aliyun 部署到 www.mnb-lab.cn
+name: Deploy to Aliyun
 
 on:
   push:
-    branches: ["main"]
+    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -10,47 +10,26 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: "npm"
 
-      - name: Build static site (out/)
-        shell: bash
-        run: |
-          set -euo pipefail
+      - run: |
           npm ci
           npm run build
-          test -d out
-          touch out/.nojekyll
-          echo "sha=$GITHUB_SHA" > out/deploy.txt
-          echo "time=$(date -u)" >> out/deploy.txt
-          echo "target=aliyun" >> out/deploy.txt
-
-      - name: Deploy to Aliyun via rsync + reload nginx
-        shell: bash
         env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-        run: |
-          set -euo pipefail
-          TARGET_HOST="60.205.93.8"
-          TARGET_USER="deploy"
-          TARGET_PORT="22"
-          REMOTE_DIR="/var/www/html"
+          MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
 
+      - run: |
+          TARGET_HOST=60.205.93.8
+          TARGET_USER=admin
+          TARGET_PORT=22
+          REMOTE_DIR=/var/www/fate
           mkdir -p ~/.ssh
-          printf '%s' "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -p "$TARGET_PORT" "$TARGET_HOST" >> ~/.ssh/known_hosts
-
-          ssh -p "$TARGET_PORT" "$TARGET_USER@$TARGET_HOST" "mkdir -p '$REMOTE_DIR'"
-
-          rsync -az --delete \
-            -e "ssh -p $TARGET_PORT -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes" \
-            out/ "$TARGET_USER@$TARGET_HOST:$REMOTE_DIR/"
-
-          ssh -p "$TARGET_PORT" "$TARGET_USER@$TARGET_HOST" "sudo nginx -t && sudo systemctl reload nginx"
+          ssh-keyscan -p $TARGET_PORT $TARGET_HOST >> ~/.ssh/known_hosts 2>/dev/null
+          sshpass -p "$SSH_PASSWORD" ssh -p $TARGET_PORT -o StrictHostKeyChecking=no $TARGET_USER@$TARGET_HOST "mkdir -p '$REMOTE_DIR'"
+          sshpass -p "$SSH_PASSWORD" rsync -az --delete -e "ssh -p $TARGET_PORT -o StrictHostKeyChecking=no" out/ "$TARGET_USER@$TARGET_HOST:$REMOTE_DIR/"
+          sshpass -p "$SSH_PASSWORD" ssh -p $TARGET_PORT -o StrictHostKeyChecking=no $TARGET_USER@$TARGET_HOST "sudo nginx -t && sudo systemctl reload nginx"
+        env:
+          SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
